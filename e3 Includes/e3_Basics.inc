@@ -1715,7 +1715,7 @@ Sub basics_Aliases
 #event gimme "[#1#(msg)] Gimme #2#"
 sub event_gimme(line, ChatSender, RequestedItem)
 
-  /declare DebugGimme true
+  /declare DebugGimme false
 	/declare SummonSpellCast 
 	/if (${DebugGimme}) /echo |- event_gimme ==>
   /if (${Waiting4Rez}) /return
@@ -2555,22 +2555,19 @@ SUB check_Food
 |-  ex:   DRU Function#11=check_Forage                     -|
 |- Add setting to your character.ini                       -|
 |-  [Misc]                                                 -|
-|-  AutoForage=On					                       -|
+|-  AutoForage=On                                           -|
 |-----------------------------------------------------------|
 SUB check_Forage
 /if (${Debug}) /echo |- check_Forage ==>
-	/declare DebugForage false
-	/if (${DebugForage}) /echo Forage On = ${Select[${Ini[${Character_Ini},Misc,AutoForage]}, On]}
-	/if (!${Defined[ForageOn]}) /declare ForageOn string outer ${Select[${Ini[${Character_Ini},Misc,AutoForage]}, On]}
-    /if (${ForageOn} && ${Me.AbilityReady[Forage]} && !${medBreak} && !${Me.CombatState.Equal[DEBUFFED]} && !${Me.Invis} && (${Me.MaxMana} == 0 || ${Me.PctMana} == 100) && ${Me.PctHPs} == 100 && ${Me.PctAggro} < 1 && !${Me.CombatState.Equal[COMBAT]} && !${Assisting}) {   
-		/echo == Foraging ==
-		/doability forage
-		/delay 2s ${Bool[${Cursor.ID}]}
-		/while (${Bool[${Cursor.ID}]}) {
-			/call ClearCursor
-			/delay 1s
-		}
-	}
+    /if (!${Defined[ForageOn]}) /declare ForageOn string outer ${Select[${Ini[${Character_Ini},Misc,AutoForage]}, On]}
+    /if (${Me.AbilityReady[Forage]} && ${ForageOn} && !${Assisting}) {
+            /doability forage
+            /delay 2s ${Cursor.ID}
+                /while (${Cursor.ID}) {
+                    /call ClearCursor
+                    /delay 1s
+                }
+    }
 /if (${Debug}) /echo <== check_Forage -|
 /RETURN
 
