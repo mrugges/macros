@@ -4,9 +4,20 @@
 |------------------------------------------------------------------------|
 |- Companion file for e3_Macro_Loot.inc.								-|
 |- Sells items flagged with [/Sell] in your Loot_Ini.					-|
+|------------------------------------------------------------------------|                                              -|
+|- Several helper functions are available for individual items on your  -|
+|- 	/printitemstatus - prints the Loot Settings value for the item on   -|
+|-        the cursor.                                                   -|
+|- 	/sellthisitem - updates the Loot Settings value for the item on     -|
+|-        the cursor to Keep,Sell so that when you invoke /autosell in  -|
+|-        future, the item will get sold to the vendor.                 -|
+|- 	/keepthisitem - updates the Loot Setings value for the item on      -|
+|-        the cursor to Keep so that when /autosell is invoked in       -|
+|-        the future, the item will NOT be sold                         -|
+|- 	/destroythisitem - updates the Loot Settings value for the item on  -|
+|-        the cursor to Destroy so that these items will be destroyed   -|
+|-        when /autosell is invoked in the future.                      -|
 |------------------------------------------------------------------------|
-
-
 
 |----------------------------------------------------|
 |- syncInventory									-|
@@ -48,11 +59,8 @@ SUB EVENT_syncInventory
 		}
 	
 	/next i
-	
 /if (${Debug} || ${Debug_Sell}) /echo <== event_inventoryItems -|
 /RETURN
-
-
 
 |------------------------------------------------------------------------------------------------------------------------------------|
 |- EVENT_sellItems																													-|
@@ -67,6 +75,9 @@ SUB EVENT_syncInventory
 #EVENT sellItems "<#*#> Auto Sell"
 SUB EVENT_sellItems
 /if (${Debug} || ${Debug_Sell}) /echo |- EVENT_sellItems ==>
+	
+	| Get current autoFlagSoldItems value so we can disable and revert if needed.
+	/declare currentAutoFlagSoldItems bool local ${autoFlagSoldItems}
 	
 	| Record starting location.
 	/declare startingLoc string local ${Me.Loc.Replace[ ,]}
@@ -97,13 +108,105 @@ SUB EVENT_sellItems
 		| Close bags.
 		/keypress CLOSE_INV_BAGS
 		
-		/echo I have finished selling.
+		/echo I have finished selling with autosell.
 	}
-	
 /if (${Debug} || ${Debug_Sell}) /echo <== EVENT_sellItems -|
 /RETURN
 
+|----------------------------------------------------|
+|- printitemstatus
+|----------------------------------------------------|
+|- echo the Loot Setting value for the item on the cursor
+|----------------------------------------------------|
+#EVENT printItemStatus "/bc printitemstatus"
+#EVENT printItemStatus "<#*#> printitemstatus"
+SUB EVENT_printItemStatus(line)
+/if (${Debug} || ${Debug_Sell}) /echo |- EVENT_printeItemStatus ==>
+	/declare cursorItem string local
+	/declare cursorIniEntry string local
+	/declare cursorIniName string local
+	
+	/if (${Cursor.ID}) {
+		/call getIniKey "${Cursor.Name}"
+		/varset cursorIniEntry ${Macro.Return}
+		/echo cursorIniEntry = ${cursorIniEntry}
+		/varset cursorIniName ${Ini[${Loot_Ini},${cursorIniEntry}]}
+		/if (${Defined[cursorIniName]}) {
+			/echo ${Cursor.Name} - ${cursorIniName}
+		} else {
+			/echo No entry found for ${Cursor.Name}
+		}
+	}
+/if (${Debug} || ${Debug_Sell}) /echo <== EVENT_printeItemStatus-|
+/RETURN
 
+|----------------------------------------------------|
+|- sellThisItem
+|----------------------------------------------------|
+|- When an item is on the cursor and you call this
+|- function it will set the Loot Settings.ini to Keep,Sell
+|----------------------------------------------------|
+#EVENT sellThisItem "/bc sellthisitem"
+#EVENT sellThisItem "<#*#> sellthisitem"
+SUB EVENT_sellThisItem(line)
+/if (${Debug}) /echo |- EVENT_sellThisItem ==>
+	/declare cursorItem string local
+	/declare cursorIniEntry string local
+	
+	/if (${Cursor.ID}) {
+		/call getIniKey "${Cursor.Name}"
+		/varset cursorIniEntry ${Macro.Return}
+		/echo Flagging ${Cursor.Name} in Loot Settings.ini for Keep,Sell
+		/call WriteToIni "${Loot_Ini},${cursorIniEntry}" "Keep,Sell" TRUE
+	}
+/if (${Debug}) /echo <== EVENT_sellThisItem-|
+/RETURN
+
+|----------------------------------------------------|
+|- destroyThisItem
+|----------------------------------------------------|
+|- When an item is on the cursor and you call this
+|- function it will set the Loot Settings.ini to Destroy
+|----------------------------------------------------|
+#EVENT destroyThisItem "/bc destroythisitem"
+#EVENT destroyThisItem "<#*#> destroythisitem"
+SUB EVENT_destroyThisItem(line)
+/if (${Debug}) /echo |- EVENT_destroyThisItem ==>
+	/declare cursorItem string local
+	/declare cursorIniEntry string local
+	
+	/if (${Cursor.ID}) {
+		/call getIniKey "${Cursor.Name}"
+		/varset cursorIniEntry ${Macro.Return}
+		/echo Flagging ${Cursor.Name} in Loot Settings.ini for Destroy
+		/call WriteToIni "${Loot_Ini},${cursorIniEntry}" "Destroy" TRUE
+		/destroy
+	}
+/if (${Debug}) /echo <== EVENT_destroyThisItem-|
+/RETURN
+
+|----------------------------------------------------|
+|- keepThisItem
+|----------------------------------------------------|
+|- When an item is on the cursor and you call this
+|- function it will set the Loot Settings.ini to Keep
+|----------------------------------------------------|
+#EVENT keepThisItem "/bc keepthisitem"
+#EVENT keepThisItem "<#*#> keepthisitem"
+SUB EVENT_keepThisItem(line)
+/if (${Debug}) /echo |- EVENT_keepThisItem ==>
+	/declare cursorItem string local
+	/declare cursorIniEntry string local
+	
+	/if (${Cursor.ID}) {
+		/call getIniKey "${Cursor.Name}"
+		/varset cursorIniEntry ${Macro.Return}
+		/echo Flagging ${Cursor.Name} in Loot Settings.ini for Keep
+		/echo ${cursorIniEntry}
+		/call WriteToIni "${Loot_Ini},${cursorIniEntry}" "Keep" TRUE
+	}
+/if (${Debug}) /echo <== EVENT_keepThisItem-|
+/RETURN
 
 |----------------------------------------|
 |- Opens all containers in inventory.	-|
@@ -141,11 +244,8 @@ SUB openBags
 		}
 	
 	/next i
-	
 /if (${Debug} || ${Debug_Sell}) /echo <== openBags -|
 /RETURN
-
-
 
 |----------------------------------------|
 |- Closes all containers in inventory.	-|
@@ -173,13 +273,11 @@ SUB closeBags
 				/if (${Window[pack${i}].Open} && ${miscTimer}) /goto :closeBag
 			}
 		}
-	
+
 	/next i
 	
 /if (${Debug} || ${Debug_Sell}) /echo <== closeBags -|
 /RETURN
-
-
 
 |--------------------------------------------|
 |- Opens trade with the nearest merchant.	-|
@@ -233,8 +331,6 @@ SUB openMerchant(int providedID)
 /if (${Debug} || ${Debug_Sell}) /echo <== openMerchant -|
 /RETURN
 
-
-
 |--------------------|
 |- closeMerchant	-|
 |--------------------|
@@ -253,316 +349,266 @@ SUB closeMerchant
 /if (${Debug} || ${Debug_Sell}) /echo <== closeMerchant -|
 /RETURN
 
-
-
-|----------------------------------------------------------------------------------------|
-|- Sells items in your inventory that have been flagged as [/Sell] in your Loot_Ini.	-|
-|----------------------------------------------------------------------------------------|
-SUB sellItems
-/if (${Debug} || ${Debug_Sell}) /echo |- sellItems ==>
-	/declare retryTimer timer local
+|-----------------------------------------------------------------------------------------------------------------------------------------|
+|- Create an array of your inventory
+|-----------------------------------------------------------------------------------------------------------------------------------------|
+| Scan Inventory creates arrays of your inventory so that the code is a bit more readable.  Iterating inventory typically takes two passes
+| one pass for containers and one pass for inventory slots.  The array just stores the location types so we do a single loop and try to 
+| make the code a bit more readable.  Scan inventory will only keep track of items and ignores empty slots.
+sub ScanInventory
+/if (${Debug} || ${Debug_Sell}) /echo |- ScanInventory ==>
 	/declare i int local
-	/declare e int local
+	/declare j int local
+	/declare invSlot int local
+	/declare containerSize int local
+	/declare arraySizeNeeded int local 0
+	/declare arrayCounter int local 1
 	
-	| Scan inventory for items to sell
-	/for i 1 to ${numInventorySlots}
+	/if (${Defined[packArray]}) { /deletevar packArray }
+	/if (${Defined[slotArray]}) { /deletevar slotArray }
 	
-		/if (${Bool[${Me.Inventory[pack${i}]}]}) {
+	/echo Scanning Inventory
+	/echo Calculating array size needed
+	/for i 1 to ${numInventorySlots} {
+		/varcalc invSlot ${Math.Calc[${i}+22]}
 		
-			| If the item in pack slot 'i' IS a container
-			/if (${Me.Inventory[pack${i}].Container}) {
-			
-				| Look at each bag slot for items to sell
-				/for e 1 to ${Me.Inventory[pack${i}].Container}
-				
-					/if (${Bool[${Me.Inventory[pack${i}].Item[${e}]}]}) {
-					
-						| Get the loot setting for the item in pack slot 'i' slot 'e'
-						/call get_lootSetting "pack${i}" "${e}"
-					
-						| Destroy the item
-						/if (${lootSetting.Find[Destroy]}) {
-							/echo Flagging [${Me.Inventory[pack${i}].Item[${e}]}] to be destroyed...
-							/call BuildArray DestroyableItems "${Me.Inventory[pack${i}].Item[${e}]}"
-						
-						| Sell the item
-						} else /if (${lootSetting.Find[Sell]}) {
-					
-							| Check that the item has value.
-							/if (!${Me.Inventory[pack${i}].Item[${e}].Value}) {
-								/if (${destroyUnsold}) {
-									/echo [${Target.CleanName}] will not buy [${Me.Inventory[pack${i}].Item[${e}]}].  Flagging it to be destroyed.
-									/call BuildArray DestroyableItems "${Me.Inventory[pack${i}].Item[${e}]}"
-								}
-							} else {
-					
-								| Select the item to sell
-								/varset retryTimer 30
-
-								:retrySelect_Pack
-								/if (${Debug} || ${Debug_Sell}) /echo |- sellItems -| :retrySelect_Pack
-								/itemnotify in pack${i} ${e} leftmouseup
-								
-								/delay ${retryTimer} ${Window[MerchantWnd].Child[MW_SelectedItemLabel].Text.Equal[${Me.Inventory[pack${i}].Item[${e}]}]}
-					
-								| If the item was not selected
-								/if (!${Window[MerchantWnd].Child[MW_SelectedItemLabel].Text.Equal[${Me.Inventory[pack${i}].Item[${e}]}]}) {
-									
-									| If I have time, retry to select the item
-									/if (${retryTimer}) {
-										/goto :retrySelect_Pack
-									} else {
-										/echo ERROR: Failed to select [${Me.Inventory[pack${i}].Item[${e}]}], skipping.
-									}
-								} else {
-						
-									| Check that the buy button is enabled
-									/if (!${Window[MerchantWnd].Child[MW_Sell_Button].Enabled}) {
-										/if (${destroyUnsold}) {
-											/echo [${Target.CleanName}] will not buy [${Me.Inventory[pack${i}].Item[${e}]}].  Flagging it to be destroyed.
-											/call BuildArray DestroyableItems "${Me.Inventory[pack${i}].Item[${e}]}"
-										}
-									} else {
-						
-										| Sell the item
-										/varset retryTimer 30
-										/echo Selling [${Me.Inventory[pack${i}].Item[${e}]}].
-										
-										:SellItem_Pack
-										/if (${Debug} || ${Debug_Sell}) /echo |- sellItems -| :SellItem_Pack
-										/notify MerchantWnd MW_Sell_Button leftmouseup
-										/delay ${retryTimer} ${Window[QuantityWnd].Open} || !${Bool[${Me.Inventory[pack${i}].Item[${e}]}]}
-						
-										| Close the quantity window
-										/if (${Window[QuantityWnd].Open}) {
-											/notify QuantityWnd QTYW_Accept_Button leftmouseup
-											/delay ${retryTimer} !${Window[QuantityWnd].Open}
-											/delay ${retryTimer} !${Bool[${Me.Inventory[pack${i}]}]}
-										}
-						
-										| If the item is still in my inventory
-										/if (${Bool[${Me.Inventory[pack${i}].Item[${e}]}]} && ${retryTimer}) {
-											/goto :SellItem
-										} else {
-											/echo ERROR: Failed to sell [${Me.Inventory[pack${i}].Item[${e}]}], skipping.
-										}
-									}
-								}
-							}
-						}
-					}
-				
-				/next e
-			
-			| If the item in pack slot 'i' is NOT a container
-			} else {
-			
-				| Get the loot setting for the item in pack slot 'i'
-				/call get_lootSetting "pack${i}" 0
-			
-				| Destroy the item
-				/if (${lootSetting.Find[Destroy]}) {
-					/echo Flagging [${InvSlot[pack${i}].Item.Name}] to be destroyed...
-					/call BuildArray DestroyableItems "${InvSlot[pack${i}].Item.Name}"
-				
-				| Sell the item
-				} else /if (${lootSetting.Find[Sell]}) {
-				
-					| Check that the item has value
-					/if (!${Me.Inventory[pack${i}].Item.Value}) {
-						/if (${destroyUnsold}) {
-							/echo [${Target.CleanName}] will not buy [${Me.Inventory[pack${i}].Item.Name}].  Flagging it to be destroyed.
-							/call BuildArray DestroyableItems "${Me.Inventory[pack${i}].Item.Name}"
-						}
-					} else {
-				
-						| Select the item to sell
-						/varset retryTimer 30
-
-						:retrySelect
-						/if (${Debug} || ${Debug_Sell}) /echo |- sellItems -| :retrySelect
-						/itemnotify in pack${i} leftmouseup
-						
-						/delay ${retryTimer} ${Window[MerchantWnd].Child[MW_SelectedItemLabel].Text.Equal[${Me.Inventory[pack${i}]}]}
-					
-						| If the item was not selected
-						/if (!${Window[MerchantWnd].Child[MW_SelectedItemLabel].Text.Equal[${Me.Inventory[pack${i}]}]}) {
-							
-							| If I have time, retry to select the item
-							/if (${retryTimer}) {
-								/goto :retrySelect
-							} else {
-								/echo ERROR: Failed to select [${Me.Inventory[pack${i}]}], skipping.
-							}
-						} else {
-				
-							| Check that the buy button is enabled
-							/if (!${Window[MerchantWnd].Child[MW_Sell_Button].Enabled}) {
-								/if (${destroyUnsold}) {
-									/echo [${Target.CleanName}] will not buy [${Me.Inventory[pack${i}]}].  Flagging it to be destroyed.
-									/call BuildArray DestroyableItems "${Me.Inventory[pack${i}]}"
-								}
-							} else {
-				
-								| Sell the item
-								/varset retryTimer 30
-								/echo Selling [${Me.Inventory[pack${i}]}].
-								
-								:SellItem
-								/if (${Debug} || ${Debug_Sell}) /echo |- sellItems -| :SellItem
-								/notify MerchantWnd MW_Sell_Button leftmouseup
-								/delay ${retryTimer} ${Window[QuantityWnd].Open} || !${Bool[${Me.Inventory[pack${i}]}]}
-				
-								| Close the quantity window
-								/if (${Window[QuantityWnd].Open}) {
-									/notify QuantityWnd QTYW_Accept_Button leftmouseup
-									/delay ${retryTimer} !${Window[QuantityWnd].Open}
-									/delay ${retryTimer} !${Bool[${Me.Inventory[pack${i}]}]}
-								}
-								
-								| If the item is still in my inventory
-								/if (${Bool[${Me.Inventory[pack${i}]}]} && ${retryTimer}) {
-									/goto :SellItem
-								} else {
-									/echo ERROR: Failed to sell [${Me.Inventory[pack${i}]}], skipping.
-								}
-							}
-						}
-					}
+		/if (${Bool[${Me.Inventory[${invSlot}].Container}]}) {
+			/varset containerSize ${Me.Inventory[${invSlot}].Container}
+			/for j 1 to ${containerSize}
+				/if (${Bool[${Me.Inventory[${invSlot}].Item[${j}]}]}) {
+					/varcalc arraySizeNeeded ${Math.Calc[${arraySizeNeeded}+1]}
 				}
+			/next j
+		} else {
+			/if (${Bool[${Me.Inventory[${invSlot}]}]}) {
+				/varcalc arraySizeNeeded ${Math.Calc[${arraySizeNeeded}+1]}
 			}
 		}
-		
 	/next i
-
-/if (${Debug} || ${Debug_Sell}) /echo <== sellItems -|
-/RETURN
-
-
-
-SUB destroyItems
-/if (${Debug} || ${Debug_Sell}) /echo |- destroyItem ==>
 	
-	/declare i int local
-	/declare e int local
-	/declare y int local
-	
-	/declare retryTimer timer local
-	/declare badItem string local
-	
-	/for i 1 to ${DestroyableItems.Size}
-	
-		/varset badItem ${DestroyableItems[${i}]}
+	/declare packArray[${arraySizeNeeded}] string outer
+	/declare slotArray[${arraySizeNeeded}] string outer
 
-		/for e 1 to ${numInventorySlots}
+	/echo Inserting items into Arrays
+	/for i 1 to ${numInventorySlots} {
+		/varcalc invSlot ${Math.Calc[${i}+22]}
 		
-			/if (!${Me.Inventory[pack${e}].Container}) {
-				
-				/if (${badItem.Equal[${Me.Inventory[pack${e}]}]}) {
-					/varset retryTimer 50
-					
-					:retry_SlotPickup
-					/itemnotify pack${e} leftmouseup
-					/delay 5 ${Cursor.ID} || ${Window[QuantityWnd].Open}
-					
-					| If the quantity window is open.
-					/if (${Window[QuantityWnd].Open}) {
-						/notify QuantityWnd QTYW_Accept_Button leftmouseup
-						/delay 10 !${Window[QuantityWnd].Open}
-					}
-					
-					/delay 5 ${Cursor.ID}
-					
-					/if (${badItem.Equal[${Cursor}]}) {
-						/echo Destroying [${Cursor}].
-						/destroy
-					} else {
-						/if (${retryTimer}) {
-							/goto :retry_SlotPickup
-						} else {
-							/echo ERROR: I failed to destroy [${badItem}], skipping.
-						}
-					}
+		/if (${Bool[${Me.Inventory[${invSlot}].Container}]}) {
+			/varset containerSize ${Me.Inventory[${invSlot}].Container}
+			/for j 1 to ${containerSize}
+				/if (${Bool[${Me.Inventory[${invSlot}].Item[${j}]}]}) {
+					/varset packArray[${arrayCounter}] ${i}
+					/varset slotArray[${arrayCounter}] ${j}
+					/varcalc arrayCounter ${Math.Calc[${arrayCounter}+1]}
 				}
-			} else {
-			
-				/for y 1 to ${Me.Inventory[pack${e}].Container}
-				
-					/if (${badItem.Equal[${Me.Inventory[pack${e}].Item[${y}]}]}) {
-					
-						/varset retryTimer 50
-					
-						:retry_BagPickup
-						/itemnotify in pack${e} ${y} leftmouseup
-						/delay 5 ${Cursor.ID} || ${Window[QuantityWnd].Open}
-						
-						| If the quantity window is open.
-						/if (${Window[QuantityWnd].Open}) {
-							/notify QuantityWnd QTYW_Accept_Button leftmouseup
-							/delay 10 !${Window[QuantityWnd].Open}
-						}
-						
-						/delay 5 ${Cursor.ID}
-						
-						/if (${badItem.Equal[${Cursor}]}) {
-							/echo Destroying [${Cursor}].
-							/destroy
-						} else {
-							/if (${retryTimer}) {
-								/goto :retry_BagPickup
-							} else {
-								/echo ERROR: I failed to destroy [${badItem}], skipping.
-							}
-						}
-					}
-				/next y
+			/next j
+		} else {
+			/if (${Bool[${Me.Inventory[${invSlot}]}]}) {
+				/varset packArray[${arrayCounter}] ${i}
+				/varset slotArray[${arrayCounter}] 0
+				/varcalc arrayCounter ${Math.Calc[${arrayCounter}+1]}
 			}
-		
-		/next e
-		
+		}
 	/next i
+	/echo Scan Inventory complete
+/if (${Debug} || ${Debug_Sell}) /echo <== sellItems -|
+/Return
 
-/if (${Debug} || ${Debug_Sell}) /echo <== destroyItem -|
-/RETURN
+Sub sellItems
+/if (${Debug} || ${Debug_Sell}) /echo |- ScanInventory ==>
+	/declare i int local
+	| maxClickAttempts is our retry counter.  Latency causes things not to work so we will retry a certain number of times to do our best to make sure items get sold or destroyed
+	/declare maxClickAttempts int local 10
+	/declare clickAttempts int local 0
+	
+	/echo Selling Items ${GameTime.Time12} --- ${GameTime.SecondsSinceMidnight}
+	
+	| Scan your inventory into your pack and slot arrays
+	/call ScanInventory
+	/echo ScanInventory Complete ${GameTime.Time12} --- ${GameTime.SecondsSinceMidnight}
+	
+	| If your inventory is empty just jump out
+	/if (${packArray.Size} == 0) /goto :sellEmptyInventory
+	
+	| Loop through all items that we scanned into the array
+	/for i 1 to ${packArray.Size} {
+		/call get_lootSetting pack${packArray[${i}]} ${slotArray[${i}]}
+		/if (${lootSetting.Find[Sell]}) {	
 
+			/varset clickAttempts 0
+			| With the merchant window open, we'll left click the items to add them to the merchant sell window
+			:selectItemAgain
+			/if (${slotArray[${i}].Equal[0]}) {
+				/itemnotify ${Math.Calc[${packArray[${i}]}+22]} leftmouseup
+			} else {
+				/itemnotify in pack${packArray[${i}]} ${slotArray[${i}]} leftmouseup
+			}
+			/delay 1
+	
+			| Check to see if the sell button is enabled once the merchant window is open
+			/if (!${Window[MerchantWnd].Child[MW_Sell_Button].Enabled} && (${clickAttempts} < ${maxClickAttempts})) {
+				/varset clickAttempts ${Math.Calc[${clickAttempts}+1]}
+				/goto :selectItemAgain
+			}
+			
+			| If we hit max click attempts print this message for now.  Probably move this to a debug only message eventually.
+			/if (${clickAttempts} >= ${maxClickAttempts}) /echo Max clickAttempts reached on :selectItemAgain ${itemNameArray[${i}]}
+			
+			| The item should be in the merchant window at this point, and the sell button is enabled, so let's click the sell button
+			| we're trying to sell with Shift key held down so that we don't get the quantity window
+			/varset clickAttempts 0
+			:pressSellAgain
+			/shiftkey /notify MerchantWnd MW_Sell_Button leftmouseup
+			/delay 1
+			/if (${Window[MerchantWnd].Child[MW_Sell_Button].Enabled} && !${Window[QuantityWnd].Open} && (${clickAttempts} < ${maxClickAttempts})) {
+				/varset clickAttempts ${Math.Calc[${clickAttempts}+1]}
+				/goto :pressSellAgain
+			}
+			/if (${clickAttempts} >= ${maxClickAttempts}) /echo Max clickAttempts reached on :pressSellAgain ${i}
+			/delay 1
+			/varset clickAttempts 0
+			:clickQuantityAgain
+			| We used /shiftkey so hopefully the quantity window doesn't come up, but let's check just in case.
+			/if (${Window[QuantityWnd].Open} && (${clickAttempts} < ${maxClickAttempts})) {
+				/echo Quantity window popped up.
+				/notify QuantityWnd QTYW_Accept_Button leftmouseup
+				/delay 1
+				/varset clickAttempts ${Math.Calc[${clickAttempts}+1]}
+				/goto :clickQuantityAgain
+			}
+			/if (${clickAttempts} >= ${maxClickAttempts}) /echo Max clickAttempts reached on :clickQuantityAgain ${i}
+			/delay 3
+		}
+	/next i
+	:sellEmptyInventory
+	/echo Sell Inventory Complete ${GameTime.Time12} --- ${GameTime.SecondsSinceMidnight}
+/if (${Debug} || ${Debug_Sell}) /echo <== sellItems -|
+/return
 
+Sub destroyItems
+/if (${Debug} || ${Debug_Sell}) /echo |- destroyItems ==>
+	/declare i int local
+	/declare maxClickAttempts int local 10
+	/declare clickAttempts int local 0
+	
+	/echo Destroying Items
+	/call ScanInventory
+	/if (${packArray.Size} == 0) /goto destroyEmptyInventory
+	/for i 1 to ${packArray.Size} {
+		/call get_lootSetting pack${packArray[${i}]} ${slotArray[${i}]}
+		/if (${lootSetting.Find[Destroy]}) {
+			
+			/varset clickAttempts 0
+			:selectItemAgain
+			/if (${slotArray[${i}].Equal[0]}) {
+				/shiftkey /itemnotify ${Math.Calc[${packArray[${i}]}+22]} leftmouseup
+			} else {
+				/shiftkey /itemnotify in pack${packArray[${i}]} ${slotArray[${i}]} leftmouseup
+			}
+			/delay 1	
+			
+			/varset clickAttempts 0
+			:clickQuantityAgain
+			/if (${Window[QuantityWnd].Open} && (${clickAttempts} < ${maxClickAttempts})) {
+				/notify QuantityWnd QTYW_Accept_Button leftmouseup
+				/delay 1
+				/varset clickAttempts ${Math.Calc[${clickAttempts}+1]}
+				/goto :clickQuantityAgain
+			}
+			/if (${clickAttempts} >= ${maxClickAttempts}) /echo Max clickAttempts reached on :clickQuantityAgain
+			
+			/if (!${Cursor.ID} && (${clickAttempts} < ${maxClickAttempts})) {
+				/varset clickAttempts ${Math.Calc[${clickAttempts}+1]}
+				/goto :selectItemAgain
+			}
+			/if (${clickAttempts} >= ${maxClickAttempts}) /echo Max clickAttempts reached on :selectItemAgain
+			/delay 1			
+			/destroy
+			/delay 3
+			/autoinventory
+		}
+	/next i
+	:destroyEmptyInventory
+/if (${Debug} || ${Debug_Sell}) /echo <== destroyItems -|
+/return
 
 SUB sell_Setup
-/call iniToVarV "${advSettings_Ini},Debug,Debug Sell (On/Off)" Debug_Sell bool outer
-/if (${Debug} || ${Debug_Sell}) /echo |- sell_Setup ==>
-
+	/call iniToVarV "${advSettings_Ini},Debug,Debug Sell (On/Off)" Debug_Sell bool outer
+	/if (${Debug} || ${Debug_Sell}) /echo |- sell_Setup ==>
+	
+	|- These outer variables are defined because offer and sold events happen independently of each other.  
+	|- The offer message stores the autoFlagSoldItemEntry and when the sold event triggers, the last offer for an item by the vendor is used to identify the item.
+	
+	/call WriteToIni "${advSettings_Ini},Debug,Debug Sell (On/Off)" "Off" False
+	/call WriteToIni "${genSettings_Ini},Sell,Destroy Unsold Items(On/Off)" "Off" False
+	
 	/call iniToVarV "${genSettings_Ini},Sell,Destroy Unsold Items(On/Off)" destroyUnsold bool outer
-
-/if (${Debug} || ${Debug_Sell}) /echo <== sell_Setup -|
+	
+	/call sell_Aliases
+	/if (${Debug} || ${Debug_Sell}) /echo <== sell_Setup -|
 /RETURN
 
-
- 
 Sub sell_Background_Events
 	/doevents syncInventory
 	/doevents sellItems
-  /doevents Combine
+	/doevents Combine
+	/doevents printItemStatus
+	/doevents keepthisitem
+	/doevents sellthisitem
+	/doevents destroythisitem
 /return
 
-
-
-SUB sell_MacroSettings
-/if (${Debug}) /echo |- _MacroSettings ==>
-	/call WriteToIni "${advSettings_Ini},Debug,Debug Sell (On/Off)" Off
-	/call WriteToIni "${genSettings_Ini},Sell,Destroy Unsold Items(On/Off)" Off
-/if (${Debug}) /echo <== _MacroSettings -|
-/RETURN
-
-
+Sub sell_Aliases
+/if (${Debug || ${Debug_Sell}}) /echo |- _Aliases ==>
+	/squelch /alias /syncInventory /bc Sync Inventory
+	/squelch /alias /autosell /echo Auto Sell
+	/squelch /alias /printitemstatus /bc printitemstatus
+	/squelch /alias /sellthisitem /bc sellthisitem
+	/squelch /alias /keepthisitem /bc keepthisitem
+	/squelch /alias /destroythisitem /bc destroythisitem
+/if (${Debug || ${Debug_Sell}}) /echo <== _Aliases -|
+/return
 
 SUB sell_CharacterSettings
 /RETURN
 
+SUB sell_MacroSettings
+    /squelch /alias /syncInventory /bc Sync Inventory
+/if (${Debug}) /echo |- _MacroSettings ==>
+    /call WriteToIni "${advSettings_Ini},Debug,Debug Sell (On/Off)" Off
+    /call WriteToIni "${genSettings_Ini},Sell,Destroy Unsold Items(On/Off)" Off
+    /squelch /alias /sellthisitem /bc sellthisitem
+    /squelch /alias /keepthisitem /bc keepthisitem
+    /squelch /alias /printitemstatus /bc printitemstatus
+    /squelch /alias /destroythisitem /bc destroythisitem
+    /squelch /alias /autosell /echo Auto Sell
+/if (${Debug}) /echo <== _MacroSettings -|
+/RETURN
 
+|- Gets the Loot Setting value for the item name passed in.
+SUB getIniKey(originalName)
+/if (${Debug || ${Debug_Sell}}) /echo |- getIniKey ${originalName}==>
+	/declare itemName string local
+	/declare itemValue string local
+  	/declare itemRawValue int local
+	/declare iniEntryVariables string local
 
-Sub sell_Aliases
-/if (${Debug}) /echo |- _Aliases ==>
-	/squelch /alias /syncInventory /bc Sync Inventory
-	/squelch /alias /autosell /echo Auto Sell
-/if (${Debug}) /echo <== _Aliases -|
-/return
+	/varset itemName ${originalName}
+
+	/if (${itemName.Find[:]}) /varset itemName ${itemName.Replace[:,;]}
+    /if (${itemName.Find[,]}) {
+      	/call RemoveComma "${itemName}"
+      	/varset itemName ${Macro.Return}
+    }
+	
+	| Set item value
+	/varset itemValue ${FindItem[${originalName}].Value}
+    /varset itemRawValue ${FindItem[${originalName}].Value}
+    /varset itemValue ${If[${Bool[${itemValue.Left[${Math.Calc[${itemValue.Length} - 3].Int}]}]},${itemValue.Left[${Math.Calc[${itemValue.Length} - 3].Int}]}p,]}${If[${Bool[${itemValue.Mid[${Math.Calc[${itemValue.Length} - 2].Int}]}]},${itemValue.Mid[${Math.Calc[${itemValue.Length} - 2].Int}]}g,]}${If[${Bool[${itemValue.Mid[${Math.Calc[${itemValue.Length} - 1].Int}]}]},${itemValue.Mid[${Math.Calc[${itemValue.Length} - 1].Int}]}s,]}${If[${Bool[${itemValue.Right[1]}]},${itemValue.Right[1]}c,]}
+		
+	| Set ini variables like stack size, (C), (ND) etc.
+	/varset iniEntryVariables ${If[${FindItem[${originalName}].Stackable},(${FindItem[${originalName}].StackSize}),]}${If[${FindItem[${originalName}].NoDrop},(ND),]}${If[${FindItem[${originalName}].Lore},(L),]}${If[${FindItem[${originalName}].Container},(C),]}
+
+	/return ${itemName.Left[1]},${itemName} ${itemValue}${iniEntryVariables}
+/if (${Debug || ${Debug_Sell}}) /echo <== getIniKey -|
+/RETURN

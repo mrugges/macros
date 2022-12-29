@@ -5,7 +5,9 @@ Sub BardClassDefinedValues
     /declare bardSongArrayQueueIndexBack int outer -1
     /declare bardSongArrayQueueMax int outer 10
     /declare bardSongArrayQueueCount int outer 0
- 	
+    /declare bardImportantSong string outer
+    /declare bardPlayerCurrentSongType string outer
+    
 /RETURN
 Sub BardClass_CircularQueue_Insert(InsertValue)
     /if (${bardSongArrayQueueCount}==${bardSongArrayQueueMax}) {
@@ -113,14 +115,30 @@ Sub BardClass_CircularQueue_ToString
 
 
 sub check_BardSongs
-  
-  /if (!${songPlayer.Equal["Twist"]} || ${Me.Invis} || ${Me.Stunned}) {
+
+  /if (!${songPlayer.Equal["Twist"]} || ${Me.Invis} || ${Me.Stunned} ||${Window[BigBankWnd].Open} || ${Window[MerchantWnd].Open} || ${Window[TradeWnd].Open} || ${Window[GuildBankWnd].Open}) {
       /return
   }
-  /declare didKick bool local false
-  
 
-  |don't do songs when looting
+   |**
+  Note, if the song has more than 1 second still on the time, kick out to allow other things to possibly get ready.
+  this is to remove the 2 song call  before an event can take place sometimes. IE: the first 2 seconds of the 3 second song
+  **|
+
+  /call ActivateSelosKick
+  
+  /if (${Window[CastingWindow].Open} && ${Cast.Timing}>500) { 
+    /return
+  }
+ 
+  
+  /if (!${playingMelody} && ${Bool[${AssistTarget}]}) {
+
+    /varset playingMelody TRUE
+
+  } 
+
+      |don't do songs when looting
   /if (${Target.CleanName.Equal[${Me}'s corpse]}) { 
       /return 
   } 
@@ -133,6 +151,9 @@ sub check_BardSongs
     /return
   } 
 
+  
+  
+
  
 
   /if (!${playingMelody}) /return
@@ -140,36 +161,78 @@ sub check_BardSongs
   /if (${bardSongArrayQueueCount}==0) {
     /return
   }
+ 
   
-  /call ActivateSelosKick
+ 
+  /call BardSongWaitLockPumpQueue
+
 
   |######################################################
   |Figure out the next song on the list to play
-  /call BardClass_CircularQueue_Pop
   /declare songGemValue string local
   /declare nextGemValue string local
-  /varset songGemValue ${Macro.Return}
-  /call BardClass_CircularQueue_Insert "${songGemValue}"
-  
-  /if (${songGemValue.Equal[Selo's Accelerating Chorus]}) {
-    /if (${Me.Buff[Selo's Accelerating Chorus].Duration.TotalSeconds}>45) {
-      |we already have the buff up and it has > 45 seconds left, skip it
-      |/echo Skipping Selo's Accelerating Chorus as it has time left
-      /call BardClass_CircularQueue_Pop
-      /varset songGemValue ${Macro.Return}
-      /call BardClass_CircularQueue_Insert "${songGemValue}"      
-    }
-  } else /if (${songGemValue.Equal[Requiem of Time]}) {
-    /if (${Target.Buff[Requiem of Time].Duration.TotalSeconds}>30) {
-      |If the target already has the slow on, ignore it. and skip to the next song.
-      /call BardClass_CircularQueue_Pop
-      /varset songGemValue ${Macro.Return}
-      /call BardClass_CircularQueue_Insert "${songGemValue}"      
-    }
-  }
  
+
+  
+  /if (${Bool[${bardImportantSong}]} && ${bardImportantSong.Length}>0 && !${Bool[${Me.Song[${bardImportantSong}]}]}) {
+
+    /delay 5
+  }  
+
+
+   /if (${Bool[${bardImportantSong}]} && ${bardImportantSong.Length}>0 && !${Bool[${Me.Song[${bardImportantSong}]}]}) {
+    /bc <BardPlayer> : Rewinding to ${bardImportantSong}
+    /call BardClass_CircularQueue_Pop
+    /varset songGemValue ${Macro.Return}
+    /call BardClass_CircularQueue_Insert "${songGemValue}"
+    /declare bardSongArrayQueueCount_temp int local 0
+    /while (!${songGemValue.Equal[${bardImportantSong}]}) {
+
+      /call BardClass_CircularQueue_Pop
+      /varset songGemValue ${Macro.Return}
+      /call BardClass_CircularQueue_Insert "${songGemValue}"
+      /varcalc bardSongArrayQueueCount_temp ${bardSongArrayQueueCount_temp} +1
+      /echo bardSongArrayQueueCount_temp: ${bardSongArrayQueueCount_temp}
+      /if (${bardSongArrayQueueCount_temp} > ${bardSongArrayQueueCount}) {
+
+        /bc <BardPlayer> : Cannot rewind to ${bardImportantSong}. Error.
+        /goto :normalSongSelection
+      }
+    }
+
+  } else {
+
+    :normalSongSelection
+    /call BardClass_CircularQueue_Pop
+    /varset songGemValue ${Macro.Return}
+    /call BardClass_CircularQueue_Insert "${songGemValue}"
+    
+
+    /if (${songGemValue.Equal[Selo's Accelerating Chorus]}) {
+      /if (${Me.Buff[Selo's Accelerating Chorus].Duration.TotalSeconds}>45) {
+        |we already have the buff up and it has > 45 seconds left, skip it
+        |/echo Skipping Selo's Accelerating Chorus as it has time left
+        /call BardClass_CircularQueue_Pop
+        /varset songGemValue ${Macro.Return}
+        /call BardClass_CircularQueue_Insert "${songGemValue}"      
+      }
+    } else /if (${songGemValue.Equal[Requiem of Time]}) {
+      /if (${Target.Buff[Requiem of Time].Duration.TotalSeconds}>30) {
+        |If the target already has the slow on, ignore it. and skip to the next song.
+        /call BardClass_CircularQueue_Pop
+        /varset songGemValue ${Macro.Return}
+        /call BardClass_CircularQueue_Insert "${songGemValue}"      
+      }
+    }
+
+  }
+
+  
+
   |End figuring out what song/item
   |##########################
+
+ 
 
   /declare isItem bool local False
   /declare isSpell bool local False
@@ -177,14 +240,15 @@ sub check_BardSongs
 
  /if (${Bool[${Me.Book[${songGemValue}]}]}) {
       /varset isSpell True
+      /varset bardPlayerCurrentSongType spell
   } else /if (${Bool[${FindItem[${songGemValue}]}]}) {
       /varset isItem True
+      /varset bardPlayerCurrentSongType item
   } else /if (${Me.AltAbility[${songGemValue}]}) {
       /varset isAltAbility true
+      /varset bardPlayerCurrentSongType aa
   }
-  
-  /call ActivateSelosKick
-  /call BardSongWaitLockPumpQueue
+
 
   |tap the current gem if we are casting 
   /if (${Bool[${Me.Casting.ID}]} ) {
@@ -207,10 +271,7 @@ sub check_BardSongs
   
     |is ths song ready? if not, kick out and loop back in
     /if (${songGemValue.Equal[Verse of Vesagran]}) { 
-       /while (!${Me.SpellReady[${songGemValue}]}) {
-            |This is one of those *special* spells. Lets wait on its stupid cooldown
-            /delay 1
-         } 
+      /delay 1s ${Me.SpellReady[${songGemValue}]}
     }
     |a delay check, for sync 
     /if (!${Me.SpellReady[${songGemValue}]}) {
@@ -369,8 +430,14 @@ SUB EVENT_startMelody(line, ChatSender, melodyName)
                   /memorize "${spellName}" "${memGem}"
                   /if (${Cast.Status.Find[M]}) /delay 3s !${Cast.Status.Find[M]}
                 } 
+                
+                /if (${melodyArray[${i}].Find[/ImportantSong]}) {
+                    /echo Setting important song:${spellName}
+				            /varset bardImportantSong ${spellName}
+			          }
+                
                 | Update songList with the corresponding gem#
-                 /varset songList ${songList} ${Me.Gem[${spellName}]}
+                /varset songList ${songList} ${Me.Gem[${spellName}]}
                 /if (${songPlayer.Equal["Twist"]}) {
                     /call BardClass_CircularQueue_Insert  "${spellName}"
                 } else {
@@ -473,7 +540,7 @@ SUB unpauseTwist
       /return
    }
   
-	/delay 3s !${Me.Casting.ID}
+	/delay 3s !${Window[CastingWindow].Open}
 	
   /if (!${Bool[${playingMelody}]}) {
      /declare songList string local
@@ -494,7 +561,7 @@ SUB unpauseTwist
        
         /twist ${songSet}
       } 
-      /delay 1s ${Me.Casting.ID}
+      /delay 1s ${Window[CastingWindow].Open}
     
     } else {
 
@@ -1038,6 +1105,14 @@ sub BardSongWaitLockPumpQueue
       /break
     }
     /doevents BackOff
+    /if (!${Window[CastingWindow].Open}) {
+      /break
+    }
+    /if (${Auto_Loot}) {
+      /call check_Loot "on"
+    
+    }
+    /call check_Anchor
     /if (!${Window[CastingWindow].Open}) {
       /break
     }

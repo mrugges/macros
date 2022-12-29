@@ -31,7 +31,11 @@ SUB EVENT_dead
 		}
 		| Wait for a Rez.
 		/docommand ${ChatToggle} I'm dead. Waiting for rez.
-		/if (!${Defined[Waiting4Rez]}) /declare Waiting4Rez bool outer TRUE
+		/if (!${Defined[Waiting4Rez]}) {
+			/declare Waiting4Rez bool outer TRUE
+		} else {
+			/varset Waiting4Rez TRUE
+		}
 		/call Wait4Rez
 	}
 /if (${Debug} || ${Debug_Wait4Rez}) /echo <== Event_Dead -|
@@ -50,7 +54,11 @@ SUB EVENT_waitNow(line, ChatSender)
 		/consent ${ChatSender}
 		|If I'm not already waiting, wait for a rez.
 		/if (!${Waiting4Rez}) {
-			/if (!${Defined[Waiting4Rez]}) /declare Waiting4Rez bool outer TRUE
+			/if (!${Defined[Waiting4Rez]}) {
+				/declare Waiting4Rez bool outer TRUE
+			} else {
+				/varset Waiting4Rez TRUE
+			}
 			/call Wait4Rez
 		}
 	}
@@ -82,18 +90,29 @@ SUB Wait4Rez(functionCall)
 	/declare i int local 0
 	/if (${functionCall.Equal[LOOT_NOW]}) /goto :Looting
 	/echo Awaiting rez: auto-accepting, and looting my corpse...
+	| Wait for Client to finish loading before consenting 
+	/delay 4s 
 	|Consent NetBots.
 	/for i 1 to ${NetBots.Counts}
-	  /delay 2
+		| Must wait 2 Seconds between Consents 
+		/delay 24
 		/consent ${NetBots.Client[${i}]}
 	/next i
 	|Load Spells.
 	/if (${Me.Class.CanCast}) /call check_Gems
+	|Save Zone ID for End Wait4Rez 
+	/declare waitZoneID int local ${Zone.ID}
   |Wait for Rez------------------------------------------------------|
 	:rezmeffs
 	/if (${Debug} || ${Debug_Wait4Rez}) /echo |- Wait4Rez -| Waiting to accept rez.
 	/call Background_Events
 	/delay 10 ${Window[ConfirmationDialogBox].Open}
+	| Check for Zone Change and Cancel 
+	/if (${Zone.ID}!=${waitZoneID}) {
+		/echo \agZone Detected Wait4Rez Canceled 
+		/echo \agWe now return to our regularly scheduled programming
+		/return
+	}
 	/if (!${Window[ConfirmationDialogBox].Open}) /goto :rezmeffs
 	|Click yes to rez box.
 	/nomodkey /notify ConfirmationDialogBox Yes_Button leftmouseup

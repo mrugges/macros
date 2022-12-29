@@ -150,9 +150,24 @@ SUB e3_Setup(modeSelect)
 		/call WriteToIni "${Character_Ini},Heals,Auto Cast Necro Heal Orbs (On/Off)" On
 	}
 
+	/if (${Bool[${Ini[${Character_Ini},Misc]}]} && !${Bool[${Ini[${Character_Ini},Misc,Anchor (Char to Anchor to)]}]}) {
+		/call WriteToIni "${Character_Ini},Misc,Anchor (Char to Anchor to)" ""
+	}
 	
-
-	/echo e3 loaded - Turbo ${classTurbo}
+	/if (${Bool[${Ini[${genSettings_Ini},Misc]}]} && !${Bool[${Ini[${genSettings_Ini},Misc,Gimmie Azure Min Request]}]}) {
+		/call WriteToIni "${genSettings_Ini},Misc,Gimmie Azure Min Requests" "2"
+	}
+	/if (${Bool[${Ini[${Character_Ini},Misc]}]} && !${Bool[${Ini[${genSettings_Ini},Misc,Gimmie Sanguine Min Requests]}]}) {
+		/call WriteToIni "${genSettings_Ini},Misc,Gimmie Sanguine Min Requests" "1"
+	}
+	/if (${Bool[${Ini[${Character_Ini},Misc]}]} && !${Bool[${Ini[${genSettings_Ini},Misc,Gimmie Large Mod Shard Min Requests]}]}) {
+		/call WriteToIni "${genSettings_Ini},Misc,Gimmie Large Mod Shard Min Requests" "1"
+	}
+	/if (${Bool[${Ini[${Character_Ini},Misc]}]} && !${Bool[${Ini[${genSettings_Ini},Misc,Gimmie MoltenOrb Min Requests]}]}) {
+		/call WriteToIni "${genSettings_Ini},Misc,Gimmie MoltenOrb Min Requests" "3"
+	}
+ 	
+	 /echo e3 loaded - Turbo ${classTurbo}
 	
 	/if (${Debug}) {
 		/echo
@@ -407,7 +422,16 @@ SUB check_Plugins
   |Check MQ2ItemDisplay.
 	/if (!${Plugin[mq2itemdisplay].Name.Length}) /plugin MQ2ItemDisplay
 	|Check MQ2LinkDB
-	/if (!${Plugin[MQ2LinkDB].Name.Length}) /plugin MQ2LinkDB
+	/if (!${Plugin[MQ2LinkDB].Name.Length}) {
+			 /plugin MQ2LinkDB
+			 
+	}
+	|new mq2 version has performance issues with version 2.3 of the plugin
+	|when scanning new links. Diabled by default for now.
+	|Note, Version 2.1 will crash the client if you issue this command, make sure its > than that.
+	/if (${Plugin[MQ2LinkDB].Name.Length} && ${Plugin[MQ2LinkDB].Version}>2.1) {
+				/link /scan off
+	}
   |Check MQ2ITurbo
   /if (!${Plugin[mq2turbo].Name.Length}) {
     /plugin MQ2Turbo

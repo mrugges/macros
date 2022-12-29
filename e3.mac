@@ -10,7 +10,9 @@
 #include e3 Includes\e3_Setup.inc
 
 SUB Main(modeSelect)
-  /declare macroVersion string outer 8.0
+  
+ 
+  /declare macroVersion string outer 8.2
   /declare Debug bool outer false
   /declare IniMode string outer Ini
   /if (${Bool[${Plugin[MQ2IniExt]}]}) {
@@ -20,13 +22,14 @@ SUB Main(modeSelect)
   /call e3_Setup "${modeSelect}"
 	/if (${Debug}) {
 		/echo Post Setup
-		/delay 5
+	  /delay 5
 	}
   /declare i int local
-  /declare mainLoop_IsHealer bool local False
+  /declare mainLoop_IsHealer bool outer False
   /if (${Select[${Me.Class.ShortName},CLR,DRU,SHM]}) {
     /varset mainLoop_IsHealer True
   } 
+
 
 :MainLoop
 /if (${Debug}) /echo |- MainLoop ==>
@@ -44,17 +47,23 @@ SUB Main(modeSelect)
     /if (${reloadOnLoot}) /call reloadSpellArrays
 
 		/call Background_Events
-		| If I'm not active, call mainFunctions
-		/if (!${activeTimer}) {
-      |These are functions in the e3_setup/Advanced.ini class sections... ex CLR Function#1=check_DivineArb
-			
 
-      :restartMainLoopSubLoop
+    |insta buffs are normaly done for junk buffs, be sure to call them often and even when active
+    /if (${Defined[InstantBuffs2D]} && !${Me.Invis})	/call buffBotsInstant "InstantBuffs2D"
+    | If I'm not active, call mainFunctions
+   	/if (!${activeTimer}) {
+      |These are functions in the e3_setup/Advanced.ini class sections... ex CLR Function#1=check_DivineArb
+		  :restartMainLoopSubLoop
+
+      |Lets check our cursor, as having something on our cursor and casting spells can .. cause issues.
+      |main thing we want to check for is Azure Mind Crystals, Sanguine Crystals, Molten orbs, Large modulation shards
+      /call check_ClearCursor
       |if you are a healer, hard coding a check_heals. This is to deal with sub methods being able to call
       |interrupts for heals and then then ActionTaken is set to true, which may never get to your check_heals
       |all healers should have check_Heals as their #1, this is just making sure it is. 
       /if (${mainLoop_IsHealer}) {
         /call check_Heals
+        /varset ActionTaken False
       }
       /for i 1 to ${mainLoop_Array.Size}
 				/if (${Bool[${mainLoop_Array[${i}]}]}) {
@@ -74,26 +83,29 @@ SUB Main(modeSelect)
         } 
       /if (!${ActionTaken}) /next i
 
-      /if (${Me.CombatState.NotEqual[COMBAT]}) {
+      /if (${Me.CombatState.NotEqual[COMBAT]} && !${Assisting}) {
         /if ((!${Me.Casting.ID} || ${Me.Class.ShortName.Equal[BRD]}) && !${use_TargetAE}) /call completePendingExchange
         /if (!${Me.Moving} && !${Following} && !${Me.Casting.ID}) {
-          /if ((${Me.PctMana} < ${autoMedPctMana} && ${Me.MaxMana} > 1 && ${autoMedChar}) || (${Me.PctEndurance} < ${autoMedPctMana} && ${autoMedChar})) {
+          /if ((${Me.PctMana} < ${autoMedPctMana} && ${Me.MaxMana} > 1 && ${autoMedChar}) || (${Me.PctEndurance} < ${autoMedPctMana} && ${autoMedChar}) || (${Me.PctHPs} < ${autoMedPctMana} && ${autoMedChar})) {
             /varset medBreak TRUE
-            /if ((${Defined[AssistType]}) && (${Select[${Me.Class.ShortName},CLR,DRU,ENC,MAG,NEC,SHM,WIZ]})) {
+            |**/if ((${Defined[AssistType]}) && (${Select[${Me.Class.ShortName},CLR,DRU,ENC,MAG,NEC,SHM,WIZ]})) {
             /varset AssistType Off 
             } else {
             /declare AssistType string Off
-            }
+            }**|
           }
         }
       }
       /if (${medBreak}) /call check_MedBreak
 		}
+    |insta buffs are normaly done for junk buffs, be sure to call them often
+    /if (${Defined[InstantBuffs2D]}  && !${Me.Invis})	/call buffBotsInstant "InstantBuffs2D"
 
-  |**/if (${MoveUtils.GM}) {
+  /if (${MoveUtils.GM}) {
     /squelch /stick imsafe
     /echo GM Safe kicked in, issued /stick imsafe.  you may need to reissue /followme or /assiston
-  }**|
+  }
+  
 /if (${Debug}) {
 	/echo <== MainLoop -|
 	/delay 5
